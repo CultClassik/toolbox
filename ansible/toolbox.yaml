@@ -1,0 +1,55 @@
+---
+- hosts: localhost
+  vars:
+    user_id: "{{ lookup('env', 'USER') }}"
+    home_dir: "{{ lookup('env', 'HOME') }}"
+    toolbox_repo_dir: "{{ home_dir }}/toolbox-sh"
+    toolbox_version: main
+    toolbox_profile_file_path: "{{ home_dir }}/.zshrc.local"
+    toolbox_profile_file_content: "{{lookup('file', toolbox_profile_file_path) | split('\n') | regex_search('^export PATH=') }}"
+
+  tasks:
+    - name: Install pre-requisites
+      community.general.homebrew:
+        name: shellcheck
+      when: ansible_os_family == 'Darwin'
+
+    - name: Installing apt Packages (Git)
+      ansible.builtin.apt:
+        state: present
+        name:
+          - shellcheck
+        update_cache: yes
+      when: ansible_os_family == 'Debian'
+
+    - name: Ensure required folders exist
+      ansible.builtin.file:
+        state: directory
+        path: "{{ toolbox_repo_dir }}"
+        owner: "{{ user_id }}"
+        mode: u=rwx,g=rx
+
+    - name: Clone this repo
+      ansible.builtin.git:
+        repo: https://github.com/Diehlabs/toolbox.git
+        dest: "{{ toolbox_repo_dir }}"
+        single_branch: yes
+        version: "{{ toolbox_version }}"
+        update: yes
+
+    - name: Copy dot files to home folder
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ toolbox_repo_dir }}"
+        dest: "{{ home_dir }}"
+        owner: "{{ user_id }}"
+
+    - name: debug
+      debug:
+        var: toolbox_profile_file_content
+
+    # - name: Add ~/toolbox.sh to path
+    #   ansible.builtin.lineinfile:
+    #     path: "{{ toolbox_profile_file_path }}"
+    #     line:
+    #     regexp: '^export PATH='
